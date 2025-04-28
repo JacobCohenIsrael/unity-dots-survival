@@ -2,7 +2,7 @@ using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
-public class UnitSelection : MonoBehaviour
+public class UnitSelectionManager : MonoBehaviour
 {
     void Update()
     {
@@ -11,7 +11,7 @@ public class UnitSelection : MonoBehaviour
             var mousePosition = InputManager.Instance.GetMouseWorldPosition();
             
             var entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-            var entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<UnitMovement>().Build(entityManager);
+            var entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<UnitMovement, Selection>().Build(entityManager);
             var unitMovementArray = entityQuery.ToComponentDataArray<UnitMovement>(Allocator.Temp);
             for (var index = 0; index < unitMovementArray.Length; index++)
             {
