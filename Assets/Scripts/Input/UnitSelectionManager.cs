@@ -1,15 +1,20 @@
 using System;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 
 public class UnitSelectionManager : MonoBehaviour
 {
+    
+    [SerializeField] private float multiSelectThreshold = 40f;
+
     public event Action OnSelectionAreaStart;
     public event Action OnSelectionAreaEnd;
     
     private Vector2 selectionStartMousePosition;
+    
 
     public static UnitSelectionManager Instance;
 
@@ -39,25 +44,56 @@ public class UnitSelectionManager : MonoBehaviour
                 entityManager.SetComponentEnabled<Selection>(entityArray[index], false);
             }
             
-            // Select all units within selection area
             var selectionAreaRect = GetSelectionAreaRect();
-            entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<LocalTransform, Unit>().WithPresent<Selection>().Build(entityManager);
-            entityArray = entityQuery.ToEntityArray(Allocator.Temp);
-            var localTransformArray = entityQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
-            for (var index = 0; index < localTransformArray.Length; index++)
+
+            if (selectionAreaRect.width + selectionAreaRect.height > multiSelectThreshold)
             {
-                var unitLocalTransform = localTransformArray[index];
-                var unitScreenPosition = Camera.main.WorldToScreenPoint(unitLocalTransform.Position);
-                if (selectionAreaRect.Contains(unitScreenPosition))
+                // Select all units within the selection area
+                entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<LocalTransform, Unit>().WithPresent<Selection>().Build(entityManager);
+                entityArray = entityQuery.ToEntityArray(Allocator.Temp);
+                var localTransformArray = entityQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+                for (var index = 0; index < localTransformArray.Length; index++)
                 {
-                    entityManager.SetComponentEnabled<Selection>(entityArray[index], true);
+                    var unitLocalTransform = localTransformArray[index];
+                    var unitScreenPosition = Camera.main.WorldToScreenPoint(unitLocalTransform.Position);
+                    if (selectionAreaRect.Contains(unitScreenPosition))
+                    {
+                        entityManager.SetComponentEnabled<Selection>(entityArray[index], true);
+                    }
                 }
             }
-            
-            OnSelectionAreaEnd?.Invoke();       
+            else
+            {
+                // Single Select
+                entityQuery = entityManager.CreateEntityQuery(typeof(PhysicsWorldSingleton));
+                var physicsWorld = entityQuery.GetSingleton<PhysicsWorldSingleton>();
+                var collisionWorld = physicsWorld.CollisionWorld;
+                UnityEngine.Ray cameraRay = Camera.main.ScreenPointToRay(Input.mousePosition);
+                const uint unitLayer = 1 << 6;
+                var raycastInput = new RaycastInput()
+                {
+                    Start = cameraRay.GetPoint(0f),
+                    End = cameraRay.GetPoint(1000f),
+                    Filter = new CollisionFilter()
+                    {
+                        BelongsTo = ~0u,
+                        CollidesWith = unitLayer,
+                        GroupIndex = 0
+                    },
+                };
+                if (collisionWorld.CastRay(raycastInput, out Unity.Physics.RaycastHit hit))
+                {
+                    if (entityManager.HasComponent<Unit>(hit.Entity))
+                    {
+                        entityManager.SetComponentEnabled<Selection>(hit.Entity, true);
+                    }
+                }
+            }
+            OnSelectionAreaEnd?.Invoke();  
+
         }
 
-    if (Input.GetMouseButtonDown(1))
+        if (Input.GetMouseButtonDown(1))
         {
             var mousePosition = InputManager.Instance.GetMouseWorldPosition();
             
