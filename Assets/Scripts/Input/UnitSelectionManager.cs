@@ -1,6 +1,7 @@
 using System;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
@@ -100,10 +101,11 @@ public class UnitSelectionManager : MonoBehaviour
             var entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             var entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<UnitMovement, Selection>().Build(entityManager);
             var unitMovementArray = entityQuery.ToComponentDataArray<UnitMovement>(Allocator.Temp);
+            var movePositionsArray = GenerateMovePositionArray(mousePosition, unitMovementArray.Length);
             for (var index = 0; index < unitMovementArray.Length; index++)
             {
                 var unitMovement = unitMovementArray[index];
-                unitMovement.TargetPosition = mousePosition;
+                unitMovement.TargetPosition = movePositionsArray[index];
                 unitMovementArray[index] = unitMovement;
             }
             entityQuery.CopyFromComponentDataArray(unitMovementArray);
@@ -123,5 +125,47 @@ public class UnitSelectionManager : MonoBehaviour
             Mathf.Max(selectionStartMousePosition.y, selectionEndMousePosition.y));
         
         return new Rect(lowerLeftCorner.x, lowerLeftCorner.y, upperRightCorner.x - lowerLeftCorner.x, upperRightCorner.y - lowerLeftCorner.y);
+    }
+
+    private NativeArray<float3> GenerateMovePositionArray(float3 targetPosition, int positionCount)
+    {
+        var positionsArray = new NativeArray<float3>(positionCount, Allocator.Temp);
+        if (positionCount == 0)
+        {
+            return positionsArray;
+        }
+        
+        positionsArray[0] = targetPosition;
+        if (positionCount == 1)
+        {
+            return positionsArray;
+        }
+
+        var ringsSize = 2.5f;
+        var ring = 0;
+        var positionIndex = 1;
+
+        while (positionIndex < positionCount)
+        {
+            var ringPositionCount = 3 + ring * 2;
+
+            for (var i = 0; i < ringPositionCount; i++)
+            {
+                var angle = i * (math.PI2 / ringPositionCount);
+                var ringVector = math.rotate(quaternion.RotateY(angle), new float3(ringsSize * (ring + 1), 0, 0));
+                var ringPosition = targetPosition + ringVector;
+                positionsArray[positionIndex] = ringPosition;
+                positionIndex++;
+                
+                if (positionIndex >= positionCount)
+                {
+                    break;
+                }
+            }
+
+            ring++;
+        }
+
+        return positionsArray;
     }
 }

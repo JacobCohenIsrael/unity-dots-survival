@@ -18,6 +18,7 @@ public class UnitMovementAuthoring : MonoBehaviour
             AddComponent(entity, new UnitMovement
             {
                 MoveSpeed = authoring.moveSpeed,
+                TargetPosition = authoring.transform.position,
                 RotationSpeed = authoring.rotationSpeed
             });
         }
